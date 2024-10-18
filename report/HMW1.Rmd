@@ -1,0 +1,163 @@
+
+---
+title: "Bass Model Analysis for Apple Watch Ultra 2"
+author: "Kristina Ayanyan"
+date: "October 17, 2024"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Introduction
+
+This report presents a Bass Model Analysis for the **Apple Watch Ultra 2**. To estimate the diffusion of this new model, I used historical sales data from previous Apple Watch models (2015-2023). The goal is to predict the potential adoption of Apple Watch Ultra 2 from 2024-2033. For this analysis, I use two methods: Non-linear Least Squares (nls) and the `diffusion` package. The parameters `p`, `q`, and `m` from the Bass Model will help forecast future adoption trends.
+
+The data was sourced from [Business of Apps](https://www.businessofapps.com/data/apple-statistics/#).
+
+## Loading Necessary Libraries
+
+```{r}
+library(ggplot2)
+library(diffusion)
+```
+
+## Sales Data (2015-2023)
+
+I am using the sales data of Apple Watches from 2015 to 2023. The time variable `t` represents the number of years since 2015, which helps us model the diffusion over time.
+
+```{r}
+# Apple Watch Sales Data (2015-2023)
+sales_data <- data.frame(
+  year = c(2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023),
+  sales = c(8.3, 11.9, 12.8, 22.5, 30.7, 43.1, 46.1, 53.9, 38.3)
+)
+
+# Add a numeric time variable (t)
+sales_data$t <- 1:nrow(sales_data)
+
+# Visualize the sales data
+ggplot(data = sales_data, aes(x = year, y = sales)) +
+  geom_bar(stat = 'identity', fill = 'blue') +
+  ggtitle('Apple Watch Sales (2015-2023)') +
+  xlab('Year') + ylab('Sales (millions)')
+```
+
+## Bass Model Parameters Estimation
+
+I used two methods to estimate the Bass Model parameters: Non-linear Least Squares (nls) and the `diffusion` package. The parameters are:
+- **p (innovation rate)**: This represents the proportion of people who adopt the product based on external information (advertising, etc.).
+- **q (imitation rate)**: This reflects how much of the product's adoption is driven by social influence.
+- **m (market potential)**: This is the total number of potential adopters.
+
+### Estimation using Non-linear Least Squares (nls)
+
+```{r}
+# Estimate Bass Model parameters using Non-linear Least Squares (nls)
+bass_model <- nls(sales ~ m * (((p + q)^2 / p) * exp(-(p + q) * t)) / 
+                    (1 + (q / p) * exp(-(p + q) * t))^2, 
+                  data = sales_data,
+                  start = list(m = sum(sales_data$sales), p = 0.03, q = 0.4))
+
+# Summary of the nls model
+summary(bass_model)
+
+# Extract parameters from the nls model
+nls_params <- summary(bass_model)$coefficients
+p_nls <- nls_params["p", "Estimate"]
+q_nls <- nls_params["q", "Estimate"]
+m_nls <- nls_params["m", "Estimate"]
+
+cat("Estimated p (innovation rate) from nls:", p_nls, "\n")
+cat("Estimated q (imitation rate) from nls:", q_nls, "\n")
+cat("Estimated m (market potential) from nls:", m_nls, "\n")
+```
+
+### Estimation using `diffusion` Library
+
+```{r}
+# Estimate Bass Model parameters using the diffusion package
+diffusion_model <- diffusion(sales_data$sales)
+diff_params <- diffusion_model$w
+
+m_diff <- round(diff_params[1], 4)
+p_diff <- round(diff_params[2], 4)
+q_diff <- round(diff_params[3], 4)
+
+cat("Estimated p (innovation rate) from diffusion package:", p_diff, "\n")
+cat("Estimated q (imitation rate) from diffusion package:", q_diff, "\n")
+cat("Estimated m (market potential) from diffusion package:", m_diff, "\n")
+```
+
+## Forecasting Apple Watch Ultra 2 (2024-2033)
+
+Using the estimated Bass Model parameters, I predicted the adoption of Apple Watch Ultra 2 from 2024-2033. Both `nls` and `diffusion` methods were used for comparison.
+
+```{r}
+# Bass model function for f(t)
+bass_f <- function(t, p, q) {
+  ((p + q)^2 / p) * exp(-(p + q) * t) / (1 + (q / p) * exp(-(p + q) * t))^2
+}
+
+# Create a data frame for future predictions (2024-2033)
+future_years <- data.frame(
+  year = 2024:2033,
+  t = 1:10 # time periods for future predictions
+)
+
+# Using the parameters from the nls model to predict
+future_years$predicted_adopters_nls <- bass_f(future_years$t, p_nls, q_nls)
+
+# Using the parameters from the diffusion package to predict
+future_years$predicted_adopters_diff <- bass_f(future_years$t, p_diff, q_diff) 
+
+# Plotting the predictions for Apple Watch Ultra 2 (2024-2033)
+ggplot(future_years, aes(x = year)) +
+  geom_point(aes(y = predicted_adopters_nls), color = 'red', size = 3) +
+  geom_point(aes(y = predicted_adopters_diff), color = 'green', size = 3) +
+  ggtitle('Predicted Number of Adopters for Apple Watch Ultra 2 (2024-2033)') +
+  ylab('Number of Adopters') + xlab('Year') +
+  theme_minimal()
+
+# Print the predicted data for review
+print(future_years)
+```
+
+## Estimating Yearly and Cumulative Adopters
+I analyze the diffusion worldwide as my data is for the whole sales worldwide and not in a specific country.
+
+Finally, I estimated the number of new adopters each year, as well as the cumulative number of adopters over time.
+
+```{r}
+# Number of adopters at each time period using nls parameters
+future_years$new_adopters_nls <- bass_f(future_years$t, p_nls, q_nls) * m_nls
+
+# Number of adopters at each time period using diffusion package parameters
+future_years$new_adopters_diff <- bass_f(future_years$t, p_diff, q_diff) * m_diff
+
+# Cumulative adopters
+future_years$cumulative_adopters_nls <- cumsum(future_years$new_adopters_nls)
+future_years$cumulative_adopters_diff <- cumsum(future_years$new_adopters_diff)
+
+# Plot the estimated yearly new adopters
+ggplot(future_years, aes(x = year)) +
+  geom_line(aes(y = new_adopters_nls), stat = 'identity', color = 'red') +
+  geom_line(aes(y = new_adopters_diff), stat = 'identity', color = 'green') +
+  ggtitle('Estimated New Adopters for Apple Watch Ultra 2 (2024-2033)') +
+  ylab('Number of New Adopters') + xlab('Year') +
+  theme_minimal()
+```
+
+```{r}
+# Plot the estimated cumulative adopters
+ggplot(future_years, aes(x = year)) +
+  geom_line(aes(y = cumulative_adopters_nls), color = 'red', linewidth = 1) +
+  geom_line(aes(y = cumulative_adopters_diff), color = 'green', linewidth = 1) +
+  ggtitle('Estimated Cumulative Adopters for Apple Watch Ultra 2 (2024-2033)') +
+  ylab('Cumulative Adopters') + xlab('Year') +
+  theme_minimal()
+```
+
+
+## Conclusion
+
+In this analysis, I used historical sales data of Apple Watches from 2015-2023 to estimate the Bass Model parameters. Using these parameters, I have forecasted the diffusion of Apple Watch Ultra 2 from 2024-2033. Both methods (`nls` and `diffusion`) provided slightly different predictions, but overall, the analysis shows that the Apple Watch Ultra 2 has strong market potential, with adoption driven largely by social factors (high imitation rate).
