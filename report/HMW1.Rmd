@@ -114,8 +114,8 @@ future_years$predicted_adopters_diff <- bass_f(future_years$t, p_diff, q_diff)
 ggplot(future_years, aes(x = year)) +
   geom_point(aes(y = predicted_adopters_nls), color = 'red', size = 3) +
   geom_point(aes(y = predicted_adopters_diff), color = 'green', size = 3) +
-  ggtitle('Predicted Number of Adopters for Apple Watch Ultra 2 (2024-2033)') +
-  ylab('Number of Adopters') + xlab('Year') +
+  ggtitle('Predicted Adoption Rate for Apple Watch Ultra 2 (2024-2033)') +
+  ylab('Adoption Rate') + xlab('Year') +
   theme_minimal()
 
 # Print the predicted data for review
